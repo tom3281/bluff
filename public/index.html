@@ -118,6 +118,49 @@
   .footer-actions { margin-top: auto; padding-top: 12px; }
   .version-tag { margin-top: 14px; text-align: center; font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.35); }
 
+  /* ---------- Deck reference (always visible during play) ---------- */
+  .deck-ref {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    padding: 8px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,181,110,0.18);
+    border-radius: 10px;
+    margin-bottom: 12px;
+  }
+  .deck-ref .head {
+    grid-column: 1 / -1;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 9px; letter-spacing: 3px; color: rgba(255,255,255,0.55);
+    padding: 0 2px 4px;
+  }
+  .deck-ref .head .total { color: #ffb56e; font-weight: 800; }
+  .deck-ref .tile {
+    text-align: center;
+    padding: 5px 2px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    line-height: 1.05;
+  }
+  .deck-ref .tile .v { font-weight: 900; font-size: 13px; display: block; }
+  .deck-ref .tile .c { font-size: 9px; color: rgba(255,181,110,0.85); font-weight: 700; letter-spacing: 1px; }
+  .deck-ref .tile.neg .v { color: #ff8a8a; }
+  .deck-ref .tile.zero .v { color: rgba(255,255,255,0.55); }
+  .deck-ref .tile.pos .v { color: #fff; }
+  .deck-ref .tile.hi .v { color: #6ec1ff; }
+  .deck-ref .tile.special { background: rgba(255,181,110,0.08); border-color: rgba(255,181,110,0.25); }
+  .deck-ref .tile.special.double .v  { color: #ff80c4; font-size: 12px; }
+  .deck-ref .tile.special.maxzero .v { color: #ffa86e; font-size: 10px; letter-spacing: -1px; }
+  .deck-ref .tile.special.draw .v    { color: #c896f0; }
+
+  @media (max-width: 380px) {
+    .deck-ref { grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 6px; }
+    .deck-ref .tile .v { font-size: 12px; }
+    .deck-ref .tile .c { font-size: 8px; }
+  }
+
   /* ---------- Bidding screen ---------- */
   .round-bar {
     display: flex; justify-content: space-between; align-items: center;
@@ -377,7 +420,7 @@
     </div>
     <button class="btn btn-primary" id="enterBtn">JOIN</button>
     <button class="btn-link-text" id="rulesBtn">ルールを見る</button>
-    <div class="version-tag">v0.1.0 · bluff</div>
+    <div class="version-tag">v0.2.0 · deck-ref</div>
   </div>
 
   <!-- ===== RULES OVERLAY ===== -->
@@ -434,6 +477,8 @@
       <span class="turn-name" id="turnName">—</span>
     </div>
 
+    <div id="deckRefBidding"></div>
+
     <div class="others-grid" id="othersGrid"></div>
 
     <div class="bid-display" id="bidDisplay">
@@ -474,6 +519,7 @@
       <div class="who" id="revealDeclarer"></div>
     </div>
     <div class="reveal-grid" id="revealGrid"></div>
+    <div id="deckRefReveal"></div>
     <div class="breakdown" id="breakdown"></div>
     <div class="footer-actions">
       <button class="btn btn-primary" id="nextBtn" style="display:none">NEXT HAND</button>
@@ -584,6 +630,47 @@ function showToast(msg, ms = 2500) {
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), ms);
 }
+
+// ===== Deck reference (always visible during BIDDING and REVEAL) =====
+// Mirrors what's actually in the server-side CARD_TEMPLATE in worker.js —
+// keep them in sync if you ever rebalance the deck.
+const DECK_REF = [
+  { v: "−10", c: 1, cls: "neg" },
+  { v: "−5",  c: 2, cls: "neg" },
+  { v: "0",   c: 3, cls: "zero" },
+  { v: "1",   c: 4, cls: "pos" },
+  { v: "2",   c: 4, cls: "pos" },
+  { v: "3",   c: 4, cls: "pos" },
+  { v: "4",   c: 3, cls: "pos" },
+  { v: "5",   c: 3, cls: "pos" },
+  { v: "10",  c: 2, cls: "hi" },
+  { v: "15",  c: 2, cls: "hi" },
+  { v: "20",  c: 1, cls: "hi" },
+  { v: "×2",    c: 2, cls: "special double" },
+  { v: "MAX→0", c: 2, cls: "special maxzero" },
+  { v: "?",     c: 2, cls: "special draw" },
+];
+const DECK_TOTAL = DECK_REF.reduce((s, t) => s + t.c, 0);
+function deckRefHTML() {
+  return `
+    <div class="deck-ref">
+      <div class="head">
+        <span>DECK</span>
+        <span>計 <span class="total">${DECK_TOTAL}</span> 枚</span>
+      </div>
+      ${DECK_REF.map(t => `
+        <div class="tile ${t.cls}"><span class="v">${t.v}</span><span class="c">×${t.c}</span></div>
+      `).join("")}
+    </div>
+  `;
+}
+// Inject once — the composition never changes round-to-round.
+document.addEventListener("DOMContentLoaded", () => {
+  const a = document.getElementById("deckRefBidding");
+  const b = document.getElementById("deckRefReveal");
+  if (a) a.innerHTML = deckRefHTML();
+  if (b) b.innerHTML = deckRefHTML();
+});
 
 // ===== Card rendering =====
 // BLUFF cards aren't suited; they're tile-like with a value or special symbol.
