@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#2a0d10">
+<title>BLUFF — 合計はいくつ?</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    background: radial-gradient(ellipse at center, #4a1018 0%, #2a0810 60%, #15050a 100%);
+    color: #fff;
+    overflow-x: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+  .app { min-height: 100dvh; display: flex; flex-direction: column; padding: 20px; max-width: 720px; margin: 0 auto; width: 100%; }
+
+  /* Screens */
+  .screen { display: none; flex: 1; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* Title */
+  .title { text-align: center; padding: 32px 20px 24px; }
+  .title h1 {
+    font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
+    font-size: clamp(36px, 12vw, 64px);
+    margin: 0; letter-spacing: -0.05em; font-weight: 900;
+    background: linear-gradient(180deg, #ffd06e 0%, #d6731e 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .title .subtitle { font-size: 11px; letter-spacing: 6px; color: rgba(255,255,255,0.55); margin-top: 4px; }
+
+  /* Inputs */
+  .panel {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,180,110,0.25);
+    border-radius: 16px;
+    padding: 20px; margin-bottom: 14px;
+    backdrop-filter: blur(8px);
+  }
+  .panel h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: 3px; color: #ffb56e; font-weight: 600; }
+  .panel input {
+    width: 100%;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #fff; font-size: 16px; outline: none;
+    transition: all .2s;
+  }
+  .panel input:focus { border-color: #ffb56e; background: rgba(255,255,255,0.12); }
+  .panel input + input { margin-top: 8px; }
+
+  /* Buttons */
+  .btn {
+    width: 100%;
+    border: none; border-radius: 14px;
+    padding: 16px;
+    font-size: 16px; font-weight: 700; letter-spacing: 4px;
+    cursor: pointer; transition: transform .1s;
+  }
+  .btn:active { transform: translateY(2px); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(180deg, #ffd06e 0%, #c66a1a 100%);
+    color: #20100a;
+    box-shadow: 0 6px 18px rgba(198,106,26,0.45);
+  }
+  .btn-danger {
+    background: linear-gradient(180deg, #ff6b6b 0%, #b81f1f 100%);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(184,31,31,0.5);
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    letter-spacing: 2px;
+  }
+  .btn + .btn { margin-top: 10px; }
+  .btn-row { display: flex; gap: 10px; }
+  .btn-row .btn { flex: 1; margin-top: 0; }
+
+  /* ---------- Player list ---------- */
+  .room-info {
+    text-align: center; margin: 12px 0 20px;
+    font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,0.55);
+  }
+  .room-code {
+    display: inline-block; margin-top: 4px;
+    font-family: 'Inter', system-ui, monospace;
+    font-size: 32px; font-weight: 900; letter-spacing: 6px;
+    color: #ffb56e;
+  }
+  .player-list { display: flex; flex-direction: column; gap: 8px; }
+  .player-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    transition: all .25s;
+  }
+  .player-row.you { border-color: #ffb56e; background: rgba(255,181,110,0.1); }
+  .player-row.host .badge { background: rgba(255,181,110,0.3); color: #ffb56e; }
+  .player-row .name { font-weight: 600; font-size: 15px; }
+  .player-row .badge {
+    font-size: 9px; padding: 3px 8px; border-radius: 999px;
+    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
+    letter-spacing: 2px; font-weight: 700;
+  }
+  .status-line {
+    text-align: center; margin: 12px 0 16px;
+    font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.55);
+  }
+  .footer-actions { margin-top: auto; padding-top: 12px; }
+  .version-tag { margin-top: 14px; text-align: center; font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.35); }
+
+  /* ---------- Bidding screen ---------- */
+  .round-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,181,110,0.22);
+    border-radius: 12px;
+    margin-bottom: 14px;
+    font-size: 12px; letter-spacing: 2px;
+  }
+  .round-bar .label { color: rgba(255,255,255,0.55); }
+  .round-bar .turn-name { color: #ffb56e; font-weight: 800; font-size: 14px; letter-spacing: 1px; }
+
+  /* Cards grid — every OTHER player's card is shown to me */
+  .others-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .other-slot {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 8px 4px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    transition: all .25s;
+    position: relative;
+  }
+  .other-slot.turn {
+    border-color: #ffb56e;
+    box-shadow: 0 0 18px rgba(255,181,110,0.35);
+    background: rgba(255,181,110,0.06);
+  }
+  .other-slot.turn::after {
+    content: "▶ 番";
+    position: absolute; top: -8px; right: -4px;
+    background: #ffb56e; color: #20100a;
+    font-size: 9px; font-weight: 900; letter-spacing: 1px;
+    padding: 2px 6px; border-radius: 999px;
+  }
+  .other-slot.last-bidder { border-color: rgba(255,180,180,0.5); }
+  .other-slot .pname {
+    font-size: 12px; font-weight: 700;
+    max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    text-align: center;
+  }
+  .other-slot .pname.you { color: #ffb56e; }
+  .other-slot .pdrinks {
+    font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.5);
+  }
+
+  /* Cards */
+  .bcard {
+    width: 70px;
+    aspect-ratio: 5/7;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #0a0a0a;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
+    font-weight: 900;
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.45),
+      0 1px 3px rgba(0,0,0,0.25),
+      inset 0 0 0 1px rgba(0,0,0,0.18);
+    overflow: hidden;
+    container-type: inline-size;
+  }
+  /* Back: blue checker like the other apps for consistency */
+  .bcard.facedown {
+    background: #ffffff;
+  }
+  .bcard.facedown::after {
+    content: ""; position: absolute; inset: 6%;
+    border-radius: 6px;
+    background:
+      linear-gradient(45deg, #2f7fd3 25%, transparent 25%) 0 0 / 8px 8px,
+      linear-gradient(-45deg, #2f7fd3 25%, transparent 25%) 0 0 / 8px 8px,
+      linear-gradient(45deg, transparent 75%, #2f7fd3 75%) 0 0 / 8px 8px,
+      linear-gradient(-45deg, transparent 75%, #2f7fd3 75%) 0 0 / 8px 8px,
+      #ffffff;
+  }
+  .bcard .v { font-size: 52cqw; letter-spacing: -0.06em; line-height: 1; }
+  .bcard.num.neg { color: #d61e2e; }
+  .bcard.num.zero { color: #6a6a72; }
+  .bcard.num.pos { color: #0a0a0a; }
+  .bcard.num.pos.hi { color: #1d6caa; }    /* 10/15/20 emphasized blue */
+  .bcard.special { color: #6a3596; }
+  .bcard.special .v { font-size: 32cqw; }
+  .bcard.special.draw .v { font-size: 58cqw; }
+  .bcard.special.maxzero { color: #c44a14; }
+  .bcard.special.double { color: #c4145a; }
+
+  /* Current bid display */
+  .bid-display {
+    text-align: center;
+    padding: 18px 12px;
+    background: linear-gradient(180deg, rgba(255,181,110,0.13), rgba(255,181,110,0.04));
+    border: 1px solid rgba(255,181,110,0.35);
+    border-radius: 14px;
+    margin-bottom: 14px;
+  }
+  .bid-display.empty { background: rgba(0,0,0,0.2); border-style: dashed; border-color: rgba(255,255,255,0.18); }
+  .bid-display .small {
+    font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.55);
+  }
+  .bid-display .big {
+    font-size: 40px; font-weight: 900; color: #ffd06e; letter-spacing: 1px; line-height: 1.1;
+    margin-top: 2px;
+  }
+  .bid-display .who { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 4px; letter-spacing: 2px; }
+
+  /* Action area */
+  .action-area {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,181,110,0.25);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .action-area .your-turn-label {
+    text-align: center;
+    font-size: 12px; letter-spacing: 4px; color: #ffb56e; font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .action-area input[type="number"] {
+    width: 100%;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: #fff; font-size: 22px; font-weight: 900; outline: none;
+    text-align: center;
+    font-family: 'Inter', system-ui, monospace;
+    letter-spacing: 2px;
+    -moz-appearance: textfield;
+  }
+  .action-area input[type="number"]::-webkit-outer-spin-button,
+  .action-area input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  .action-area input:focus { border-color: #ffb56e; }
+
+  .waiting-host {
+    text-align: center;
+    font-size: 12px; letter-spacing: 3px;
+    color: rgba(255,255,255,0.55);
+    padding: 18px;
+    border: 1px dashed rgba(255,181,110,0.25);
+    border-radius: 12px;
+    background: rgba(0,0,0,0.2);
+    margin-bottom: 14px;
+  }
+  .waiting-host b { color: #ffb56e; }
+
+  /* ---------- Reveal screen ---------- */
+  .verdict-banner {
+    text-align: center; padding: 14px;
+    background: linear-gradient(90deg, transparent, rgba(255,80,80,0.22), transparent);
+    border-top: 1px solid rgba(255,80,80,0.4);
+    border-bottom: 1px solid rgba(255,80,80,0.4);
+    margin: 0 -20px 14px;
+  }
+  .verdict-banner .label { font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.6); }
+  .verdict-banner .loser-name {
+    font-size: 24px; font-weight: 900; color: #ff6b6b; letter-spacing: 2px; margin-top: 2px;
+    text-shadow: 0 0 12px rgba(255,80,80,0.5);
+  }
+  .reveal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .breakdown {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    letter-spacing: 1px;
+    line-height: 1.6;
+  }
+  .breakdown .row { display: flex; justify-content: space-between; }
+  .breakdown .row + .row { margin-top: 4px; }
+  .breakdown .label { color: rgba(255,255,255,0.55); }
+  .breakdown .val { color: #fff; font-weight: 700; }
+  .breakdown .total { border-top: 1px solid rgba(255,255,255,0.18); padding-top: 6px; margin-top: 8px; }
+  .breakdown .total .val { color: #ffd06e; font-size: 18px; }
+  .breakdown .declared .val { color: #ff9090; }
+
+  /* Rules overlay */
+  .btn-link-text {
+    display: block; margin: 8px auto 0;
+    background: none; border: none; color: rgba(255,181,110,0.7);
+    font-size: 12px; letter-spacing: 2px; cursor: pointer; text-decoration: underline;
+  }
+  .rules-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    display: none; align-items: flex-start; justify-content: center;
+    overflow-y: auto; padding: 40px 20px;
+  }
+  .rules-overlay.show { display: flex; }
+  .rules-card {
+    background: linear-gradient(180deg, #2a0810 0%, #15050a 100%);
+    border: 1px solid rgba(255,181,110,0.45);
+    border-radius: 16px;
+    padding: 24px 22px;
+    max-width: 520px; width: 100%;
+    color: #fff;
+  }
+  .rules-card h2 { margin: 0 0 14px; color: #ffb56e; letter-spacing: 4px; font-size: 16px; }
+  .rules-card dl { margin: 0; font-size: 13px; line-height: 1.6; }
+  .rules-card dt { color: #ffb56e; font-weight: 700; margin-top: 12px; letter-spacing: 2px; }
+  .rules-card dd { margin: 4px 0 0; color: rgba(255,255,255,0.85); }
+  .rules-card .close-hint { text-align: center; margin-top: 18px; font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.4); }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(255,80,80,0.95); color: #fff;
+    padding: 12px 20px; border-radius: 10px;
+    font-size: 14px; z-index: 1000;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .toast.show { opacity: 1; }
+
+  /* Compact phones */
+  @media (max-width: 380px) {
+    .bcard { width: 56px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== ENTER ===== -->
+  <div class="screen active" id="enterScreen">
+    <div class="title">
+      <h1>BLUFF</h1>
+      <div class="subtitle">合計は いくつ?</div>
+    </div>
+    <div class="panel">
+      <h2>あなたの名前</h2>
+      <input id="nameInput" type="text" placeholder="プレイヤー名" maxlength="12" autocomplete="off">
+    </div>
+    <div class="panel">
+      <h2>ルームコード</h2>
+      <input id="roomInput" type="text" placeholder="既存ルームのコードを入力（既定値は新規ルーム）" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px;">
+      <div style="margin-top:8px; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.45);">1ルーム最大8人</div>
+    </div>
+    <button class="btn btn-primary" id="enterBtn">JOIN</button>
+    <button class="btn-link-text" id="rulesBtn">ルールを見る</button>
+    <div class="version-tag">v0.1.0 · bluff</div>
+  </div>
+
+  <!-- ===== RULES OVERLAY ===== -->
+  <div class="rules-overlay" id="rulesOverlay">
+    <div class="rules-card">
+      <h2>RULES</h2>
+      <dl>
+        <dt>進行</dt>
+        <dd>各自スマホで同じルームコードに JOIN (最大8人)。ホストが START したら全員に1枚配られる。<b>自分のカードは見えない</b>、他人のは見える。</dd>
+
+        <dt>宣言フェーズ</dt>
+        <dd>順番に「全員のカード合計は <b>○○ 以上</b>」と宣言する。次の人は <b>前より大きい数</b> で宣言し直すか、<b>「BLUFF!」</b> で挑戦する。</dd>
+
+        <dt>BLUFF 宣言</dt>
+        <dd>挑戦時、全員のカードを公開して実合計を計算:</dd>
+        <dd>• 実合計 <b>＜</b> 宣言値 → <b>宣言した人</b> が負け (ハッタリ)</dd>
+        <dd>• 実合計 <b>≥</b> 宣言値 → <b>挑戦した人</b> が負け</dd>
+        <dd>負けた人が <b>1杯</b>、次ラウンドの開始者。</dd>
+
+        <dt>特殊カード</dt>
+        <dd>• <b>×2</b>: 全員のカード合計を2倍 (×2 が複数なら掛け合わせ)</dd>
+        <dd>• <b>MAX→0</b>: 場で一番大きい数値カードを <b>0扱い</b> にして合計</dd>
+        <dd>• <b>?</b>: 山から1枚追加で引いて場に加わる (連鎖あり)</dd>
+        <dd>計算順: 数値合計 → MAX→0 → ×2</dd>
+
+        <dt>カード構成</dt>
+        <dd>35枚: −10/−5/0/1/2/3/4/5/10/15/20 + 特殊3種 (×2, MAX→0, ?)</dd>
+      </dl>
+      <div class="close-hint">タップで閉じる</div>
+    </div>
+  </div>
+
+  <!-- ===== LOBBY ===== -->
+  <div class="screen" id="lobbyScreen">
+    <div class="room-info">
+      ROOM CODE
+      <div class="room-code" id="roomCodeDisplay">------</div>
+    </div>
+    <div class="panel">
+      <h2>プレイヤー <span id="playerCountLabel" style="opacity:.7"></span></h2>
+      <div class="player-list" id="lobbyPlayerList"></div>
+    </div>
+    <div class="status-line" id="lobbyStatus"></div>
+    <div class="footer-actions">
+      <button class="btn btn-primary" id="startBtn" style="display:none">START</button>
+      <button class="btn btn-ghost" id="leaveBtn">退出</button>
+    </div>
+  </div>
+
+  <!-- ===== BIDDING ===== -->
+  <div class="screen" id="biddingScreen">
+    <div class="round-bar">
+      <span class="label">ターン</span>
+      <span class="turn-name" id="turnName">—</span>
+    </div>
+
+    <div class="others-grid" id="othersGrid"></div>
+
+    <div class="bid-display" id="bidDisplay">
+      <div class="small">CURRENT BID</div>
+      <div class="big" id="bidValue">—</div>
+      <div class="who" id="bidWho"></div>
+    </div>
+
+    <!-- Your-turn action area -->
+    <div class="action-area" id="actionArea" style="display:none">
+      <div class="your-turn-label">あなたの番</div>
+      <input id="bidInput" type="number" placeholder="例: 25" inputmode="numeric">
+      <div style="margin-top:10px" class="btn-row">
+        <button class="btn btn-primary" id="bidBtn">宣言</button>
+        <button class="btn btn-danger" id="bluffBtn">BLUFF!</button>
+      </div>
+    </div>
+
+    <!-- Not-your-turn waiting -->
+    <div class="waiting-host" id="waitingTurn" style="display:none">
+      <b id="waitingName">—</b> の宣言を待っています
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn btn-ghost" id="leaveBtn2">退出</button>
+    </div>
+  </div>
+
+  <!-- ===== REVEAL ===== -->
+  <div class="screen" id="revealScreen">
+    <div class="verdict-banner">
+      <div class="label">LOSER · 1杯</div>
+      <div class="loser-name" id="loserName">—</div>
+    </div>
+    <div class="bid-display">
+      <div class="small">宣言は</div>
+      <div class="big" id="revealDeclared">—</div>
+      <div class="who" id="revealDeclarer"></div>
+    </div>
+    <div class="reveal-grid" id="revealGrid"></div>
+    <div class="breakdown" id="breakdown"></div>
+    <div class="footer-actions">
+      <button class="btn btn-primary" id="nextBtn" style="display:none">NEXT HAND</button>
+      <div class="waiting-host" id="waitingHostReveal" style="display:none">ホストの次のラウンド開始待ち</div>
+      <button class="btn btn-ghost" id="leaveBtn3">退出</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+// ===== State =====
+const PHASES = { LOBBY: "lobby", BIDDING: "bidding", REVEAL: "reveal" };
+const STORAGE_KEY = "bluff_v1";
+const MAX_RECONNECT = 8;
+let ws = null;
+let serverState = null;
+let myInfo = { name: "", room: "" };
+let manualClose = false;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let heartbeatTimer = null;
+let lastServerMessageAt = 0;
+const HEARTBEAT_INTERVAL_MS = 5_000;
+const HEARTBEAT_TIMEOUT_MS = 20_000;
+
+// Wake Lock
+let wakeLock = null;
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; });
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (!wakeLock && ws) requestWakeLock();
+  if (myInfo.room && myInfo.name && !manualClose) {
+    if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+      forceReconnect("resume");
+    }
+  }
+});
+
+function forceReconnect(reason) {
+  if (manualClose) return;
+  if (reconnectTimer) return;
+  if (ws) {
+    const old = ws; ws = null;
+    try { old.close(4001, reason || "forced"); } catch {}
+  }
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect(myInfo.name, myInfo.room);
+  }, 200);
+}
+
+// Stable per-browser-profile id
+function getOrCreateClientId() {
+  const KEY = "bluff_clientId_v1";
+  let id = "";
+  try { id = localStorage.getItem(KEY) || ""; } catch {}
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(id)) {
+    id = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+      : Array.from({length: 32}, () => "0123456789abcdef"[Math.floor(Math.random()*16)]).join("");
+    try { localStorage.setItem(KEY, id); } catch {}
+  }
+  return id;
+}
+const CLIENT_ID = getOrCreateClientId();
+
+const FUNNY_NAMES = [
+  "酒豪", "ザル", "ベロベロ", "ほろ酔い", "下戸", "二日酔い", "顔面紅葉", "記憶喪失",
+  "翌日後悔", "終電マン", "ウーロン茶", "一気のヌシ", "顔面真っ赤", "介錯人", "ノンアル王", "酔拳",
+];
+function randomFunnyName() { return FUNNY_NAMES[Math.floor(Math.random() * FUNNY_NAMES.length)]; }
+function randomRoomCode() {
+  const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 5 }, () => A[Math.floor(Math.random() * A.length)]).join("");
+}
+try {
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  document.getElementById("nameInput").value = saved.name || randomFunnyName();
+} catch {
+  document.getElementById("nameInput").value = randomFunnyName();
+}
+document.getElementById("roomInput").value = randomRoomCode();
+
+// ===== DOM helpers =====
+function $(id) { return document.getElementById(id); }
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
+  $(name + "Screen").classList.add("active");
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+function showToast(msg, ms = 2500) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), ms);
+}
+
+// ===== Card rendering =====
+// BLUFF cards aren't suited; they're tile-like with a value or special symbol.
+function cardLabel(c) {
+  if (!c) return "";
+  if (c.kind === "num") return String(c.value);
+  if (c.kind === "double") return "×2";
+  if (c.kind === "maxzero") return "MAX→0";
+  if (c.kind === "draw") return "?";
+  return "?";
+}
+function cardClass(c) {
+  if (!c) return "facedown";
+  if (c.kind === "num") {
+    if (c.value < 0) return "num neg";
+    if (c.value === 0) return "num zero";
+    if (c.value >= 10) return "num pos hi";
+    return "num pos";
+  }
+  return "special " + c.kind;
+}
+function cardHTML(c) {
+  if (!c) return `<div class="bcard facedown"></div>`;
+  return `<div class="bcard ${cardClass(c)}"><span class="v">${cardLabel(c)}</span></div>`;
+}
+
+// ===== Connection =====
+function connect(name, room) {
+  myInfo.name = name; myInfo.room = room;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ name })); } catch {}
+  manualClose = false;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws`
+    + `?room=${encodeURIComponent(room)}`
+    + `&name=${encodeURIComponent(name)}`
+    + `&clientId=${encodeURIComponent(CLIENT_ID)}`;
+
+  const sock = new WebSocket(url);
+  ws = sock;
+
+  sock.addEventListener("open", () => {
+    if (ws !== sock) return;
+    reconnectAttempts = 0;
+    lastServerMessageAt = Date.now();
+    startHeartbeat();
+    requestWakeLock();
+    $("roomCodeDisplay").textContent = room;
+    try { sock.send(JSON.stringify({ type: "hello" })); } catch {}
+  });
+
+  sock.addEventListener("message", (e) => {
+    if (ws !== sock) return;
+    lastServerMessageAt = Date.now();
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === "state") {
+      serverState = msg.state;
+      onStateUpdate();
+    }
+  });
+
+  sock.addEventListener("close", (e) => {
+    const isCurrent = ws === sock;
+    if (isCurrent) {
+      stopHeartbeat();
+      ws = null;
+    }
+    if (e.code === 4002) {
+      if (isCurrent) {
+        manualClose = true;
+        reconnectAttempts = 0;
+        showToast("別のタブで開かれました");
+        showScreen("enter");
+      }
+      return;
+    }
+    if (e.code === 4030 || e.code === 4023 || e.code === 1008) {
+      if (isCurrent) {
+        manualClose = true;
+        reconnectAttempts = 0;
+        showToast(e.code === 4030 ? "ルームが満員です"
+          : e.code === 4023 ? "ゲームが進行中で参加できません"
+          : "ルームに入れませんでした");
+        showScreen("enter");
+      }
+      return;
+    }
+    if (manualClose) {
+      if (isCurrent) {
+        reconnectAttempts = 0;
+        showScreen("enter");
+      }
+      return;
+    }
+    if (isCurrent && myInfo.room && myInfo.name && reconnectAttempts < MAX_RECONNECT) {
+      reconnectAttempts++;
+      const backoff = Math.min(500 * Math.pow(2, reconnectAttempts - 1), 4000);
+      showToast(`再接続中... (${reconnectAttempts}/${MAX_RECONNECT})`);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect(myInfo.name, myInfo.room);
+      }, backoff);
+      return;
+    }
+    if (isCurrent) {
+      showToast("接続が切れました");
+      showScreen("enter");
+      reconnectAttempts = 0;
+    }
+  });
+
+  sock.addEventListener("error", () => {});
+}
+
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+    return true;
+  }
+  return false;
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    try { ws.send(JSON.stringify({ type: "ping" })); } catch {}
+    if (Date.now() - lastServerMessageAt > HEARTBEAT_TIMEOUT_MS) {
+      forceReconnect("heartbeat-timeout");
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+}
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+
+function disconnect() {
+  manualClose = true;
+  reconnectAttempts = 0;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  stopHeartbeat();
+  if (ws) { try { ws.close(1000, "user disconnect"); } catch {} ws = null; }
+  if (wakeLock) { try { wakeLock.release(); } catch {} wakeLock = null; }
+  showScreen("enter");
+}
+
+// ===== State handler =====
+function onStateUpdate() {
+  if (!serverState) return;
+  const phase = serverState.phase;
+  switch (phase) {
+    case PHASES.LOBBY: renderLobby(); break;
+    case PHASES.BIDDING: renderBidding(); break;
+    case PHASES.REVEAL: renderReveal(); break;
+  }
+}
+
+// ===== Lobby =====
+function renderLobby() {
+  showScreen("lobby");
+  const players = serverState.players || [];
+  $("playerCountLabel").textContent = `(${players.length}/8)`;
+  $("lobbyPlayerList").innerHTML = players.map(p => `
+    <div class="player-row ${p.isYou ? "you" : ""} ${p.id === serverState.hostId ? "host" : ""}">
+      <span class="name">${escapeHtml(p.name)}${p.isYou ? " (あなた)" : ""}</span>
+      <span class="badge">${p.id === serverState.hostId ? "HOST" : ""}${p.drinkCount > 0 ? " · " + p.drinkCount + "杯" : ""}</span>
+    </div>
+  `).join("");
+
+  const isHost = serverState.you === serverState.hostId;
+  const startBtn = $("startBtn");
+  const status = $("lobbyStatus");
+  if (isHost) {
+    startBtn.style.display = "";
+    if (players.length < 2) {
+      startBtn.disabled = true;
+      status.textContent = "もう1人以上の参加を待っています";
+    } else {
+      startBtn.disabled = false;
+      status.textContent = "全員揃ったらSTART";
+    }
+  } else {
+    startBtn.style.display = "none";
+    status.textContent = "ホストの開始を待っています";
+  }
+}
+
+// ===== Bidding =====
+function renderBidding() {
+  showScreen("bidding");
+  const me = serverState.players.find(p => p.isYou);
+  const isMyTurn = serverState.currentBidderId === serverState.you;
+  const currentBidderName = (serverState.players.find(p => p.id === serverState.currentBidderId) || {}).name || "—";
+
+  $("turnName").textContent = isMyTurn ? "あなた" : currentBidderName;
+
+  // Order players in canonical turn order; self last so others' cards are at top
+  const orderedIds = serverState.order || serverState.players.map(p => p.id);
+  const playersById = new Map(serverState.players.map(p => [p.id, p]));
+
+  $("othersGrid").innerHTML = orderedIds.map(id => {
+    const p = playersById.get(id);
+    if (!p) return "";
+    const isTurn = id === serverState.currentBidderId;
+    const isLastBidder = serverState.currentBid && serverState.currentBid.playerId === id;
+    let classes = "other-slot";
+    if (isTurn) classes += " turn";
+    if (isLastBidder && !isTurn) classes += " last-bidder";
+    return `
+      <div class="${classes}">
+        ${cardHTML(p.card)}
+        <div class="pname ${p.isYou ? "you" : ""}">${escapeHtml(p.name)}${p.isYou ? " (あなた)" : ""}</div>
+        <div class="pdrinks">${p.drinkCount > 0 ? p.drinkCount + "杯" : ""}</div>
+      </div>
+    `;
+  }).join("");
+
+  // Current bid
+  const bid = serverState.currentBid;
+  const bidDisplay = $("bidDisplay");
+  if (bid) {
+    bidDisplay.classList.remove("empty");
+    $("bidValue").textContent = `${bid.value} 以上`;
+    const bidderName = (playersById.get(bid.playerId) || {}).name || "—";
+    $("bidWho").textContent = `by ${bidderName}`;
+  } else {
+    bidDisplay.classList.add("empty");
+    $("bidValue").textContent = "—";
+    $("bidWho").textContent = "最初の宣言を待っています";
+  }
+
+  // Action area
+  if (isMyTurn) {
+    $("actionArea").style.display = "";
+    $("waitingTurn").style.display = "none";
+    $("bluffBtn").disabled = !bid; // can't bluff opening turn
+    const input = $("bidInput");
+    if (bid) {
+      input.min = String(bid.value + 1);
+      input.placeholder = `${bid.value + 1} 以上`;
+    } else {
+      input.removeAttribute("min");
+      input.placeholder = "宣言する数値 (例: 25)";
+    }
+  } else {
+    $("actionArea").style.display = "none";
+    $("waitingTurn").style.display = "";
+    $("waitingName").textContent = currentBidderName;
+  }
+}
+
+function submitBid() {
+  const val = parseInt($("bidInput").value, 10);
+  if (!Number.isFinite(val)) { showToast("数値を入力してください"); return; }
+  const bid = serverState && serverState.currentBid;
+  if (bid && val <= bid.value) {
+    showToast(`${bid.value + 1} 以上で宣言してください`);
+    return;
+  }
+  send({ type: "bid", value: val });
+  $("bidInput").value = "";
+}
+
+function submitBluff() {
+  if (!serverState || !serverState.currentBid) return;
+  send({ type: "bluff" });
+}
+
+// ===== Reveal =====
+function renderReveal() {
+  showScreen("reveal");
+  const result = serverState.result;
+  if (!result) return;
+
+  const playersById = new Map(serverState.players.map(p => [p.id, p]));
+  const orderedIds = serverState.order || serverState.players.map(p => p.id);
+
+  const loserName = (playersById.get(result.loserId) || {}).name || "—";
+  $("loserName").textContent = loserName;
+
+  $("revealDeclared").textContent = `${result.declared} 以上`;
+  const declarerName = (playersById.get(result.declarerId) || {}).name || "—";
+  const challengerName = (playersById.get(result.challengerId) || {}).name || "—";
+  $("revealDeclarer").textContent = `宣言: ${declarerName} / 挑戦: ${challengerName}`;
+
+  // Cards grid (including extras drawn by "?" cards)
+  let html = orderedIds.map(id => {
+    const p = playersById.get(id);
+    if (!p) return "";
+    return `
+      <div class="other-slot ${id === result.loserId ? "last-bidder" : ""}">
+        ${cardHTML(p.card)}
+        <div class="pname ${p.isYou ? "you" : ""}">${escapeHtml(p.name)}${p.isYou ? " (あなた)" : ""}</div>
+        <div class="pdrinks">${p.drinkCount > 0 ? p.drinkCount + "杯" : ""}</div>
+      </div>
+    `;
+  }).join("");
+  if (result.extras && result.extras.length) {
+    html += result.extras.map(c => `
+      <div class="other-slot">
+        ${cardHTML(c)}
+        <div class="pname" style="color:#ffb56e">?からドロー</div>
+        <div class="pdrinks">追加</div>
+      </div>
+    `).join("");
+  }
+  $("revealGrid").innerHTML = html;
+
+  // Breakdown
+  const b = result.breakdown || {};
+  const rows = [];
+  rows.push(`<div class="row"><span class="label">数値合計</span><span class="val">${b.base ?? 0}</span></div>`);
+  if (b.maxZeroCount > 0) {
+    rows.push(`<div class="row"><span class="label">MAX→0 (−${b.maxValRemoved})</span><span class="val">${b.sumAfterMaxZero}</span></div>`);
+  }
+  if (b.doubleCount > 0) {
+    rows.push(`<div class="row"><span class="label">×2 を ${b.doubleCount} 回</span><span class="val">×${Math.pow(2, b.doubleCount)}</span></div>`);
+  }
+  rows.push(`<div class="row total"><span class="label">実合計</span><span class="val">${result.sum}</span></div>`);
+  rows.push(`<div class="row declared"><span class="label">宣言</span><span class="val">${result.declared} 以上</span></div>`);
+  $("breakdown").innerHTML = rows.join("");
+
+  // Host controls
+  const isHost = serverState.you === serverState.hostId;
+  $("nextBtn").style.display = isHost ? "" : "none";
+  $("waitingHostReveal").style.display = isHost ? "none" : "";
+}
+
+// ===== Event listeners =====
+$("enterBtn").addEventListener("click", () => {
+  const name = $("nameInput").value.trim();
+  let room = $("roomInput").value.trim().toUpperCase();
+  if (!name) { showToast("名前を入力してください"); return; }
+  if (!room) {
+    room = Array.from({length: 5}, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 31)]).join("");
+  } else if (!/^[A-Z0-9]{4,6}$/.test(room)) {
+    showToast("ルームコードは4〜6文字の英数字");
+    return;
+  }
+  requestWakeLock();
+  connect(name, room);
+});
+
+$("startBtn").addEventListener("click", () => send({ type: "start" }));
+$("nextBtn").addEventListener("click", () => send({ type: "next" }));
+$("bidBtn").addEventListener("click", submitBid);
+$("bluffBtn").addEventListener("click", submitBluff);
+$("bidInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitBid();
+});
+
+$("leaveBtn").addEventListener("click", disconnect);
+$("leaveBtn2").addEventListener("click", disconnect);
+$("leaveBtn3").addEventListener("click", disconnect);
+
+$("rulesBtn").addEventListener("click", () => $("rulesOverlay").classList.add("show"));
+$("rulesOverlay").addEventListener("click", () => $("rulesOverlay").classList.remove("show"));
+
+document.addEventListener("gesturestart", e => e.preventDefault());
+</script>
+</body>
+</html>
